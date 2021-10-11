@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: todoapp
+---
+kind: Egress
+apiVersion: policy.openservicemesh.io/v1alpha1
+metadata:
+  name: tcp-1433
+spec:
+  sources:
+  - kind: ServiceAccount
+    name: todoapp
+    namespace: todoapp
+  ports:
+  - number: 1433
+    protocol: tcp

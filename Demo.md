@@ -164,3 +164,119 @@ cat Kubernetes/todoapp.deploy.yaml | envsubst | kubectl apply -f - -n todoapp
 kubectl apply -f Kubernetes/todoapp.svc.yaml -n todoapp
 kubectl apply -f Kubernetes/todoapp.ingress.yaml -n todoapp
 ```
+
+Access the Todo App and verify it is working and stores todos in Azure SQL DB:
+
+```sh
+kubectl get ingress -n todoapp
+# <ingress_ip>
+# Browse to: http://<ingress_ip>
+```
+
+Install OSM via AKS add-on
+--------------------------
+
+```sh
+az extension add --name aks-preview
+# or
+az extension update --name aks-preview
+
+az feature register --namespace "Microsoft.ContainerService" --name "AKS-OpenServiceMesh"
+az feature list -o table --query "[?contains(name, 'Microsoft.ContainerService/AKS-OpenServiceMesh')].{Name:name,State:properties.state}"
+az provider register --namespace Microsoft.ContainerService
+
+az aks enable-addons --addons open-service-mesh -g $RG_NAME -n $CLUSTER
+az aks list -g $RG_NAME -o json | jq -r '.[].addonProfiles.openServiceMesh.enabled'
+
+kubectl get deployments -n kube-system --selector app=osm-controller
+kubectl get pods -n kube-system --selector app=osm-controller
+kubectl get services -n kube-system --selector app=osm-controller
+```
+
+Configure OSM
+-------------
+
+```sh
+kubectl get meshconfig osm-mesh-config -n kube-system -o yaml
+kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"traffic":{"enablePermissiveTrafficPolicyMode":false}}}' --type=merge
+kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"traffic":{"enableEgress":false}}}' --type=merge
+kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"featureFlags":{"enableEgressPolicy":true}}}' --type=merge
+```
+
+Install OSM client library
+--------------------------
+
+```sh
+OSM_VERSION=v0.9.1
+curl -sL "https://github.com/openservicemesh/osm/releases/download/$OSM_VERSION/osm-$OSM_VERSION-linux-amd64.tar.gz" | tar -vxzf -
+sudo mv ./linux-amd64/osm /usr/local/bin/osm
+sudo chmod +x /usr/local/bin/osm
+osm version
+```
+
+Onboard todoapp to OSM
+----------------------
+
+```sh
+osm namespace add todoapp
+osm namespace list
+kubectl get pod -n todoapp
+
+kubectl delete deploy todoapp -n todoapp
+cat Kubernetes/todoapp.deploy.yaml | envsubst | kubectl apply -f - -n todoapp
+kubectl get pod -n todoapp
+```
+
+The todoapp should not work as it needs egress to Azure SQL DB.
+
+Error displayed in browser: "upstream request timeout"
+
+We can check the pod logs:
+
+```sh
+# Todoapp
+kubectl logs pod/todoapp-d87454c7f-cd6sw -n todoapp todoapp -f
+# --> An error occurred using the connection to database 'coreDB' on server 'tcp:todoserver-xxxxx.database.windows.net,1433'.
+
+# OSM sidecar
+kubectl logs pod/todoapp-d87454c7f-cd6sw -n todoapp envoy -f
+# --> "upstream_response_timeout"}
+```
+
+Enable egress
+-------------
+
+Enable egress traffic to allow access to Azure SQL DB:
+
+```sh
+kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"traffic":{"enableEgress":true}}}' --type=merge
+kubectl delete deploy todoapp -n todoapp
+cat Kubernetes/todoapp.deploy.yaml | envsubst | kubectl apply -f - -n todoapp
+kubectl get pod -n todoapp
+```
+
+OSM troubleshooting
+-------------------
+
+```sh
+# OSM controller logs
+kubectl logs -n kube-system $(kubectl get pod -n kube-system -l app=osm-controller -o jsonpath='{.items[0].metadata.name}') | grep error
+```
+
+Cleanup
+-------
+
+```sh
+az group delete -n $RG_NAME
+```
+
+TODO
+----
+
+* Add fine grained egress access policies
+
+Resources
+---------
+
+* [Tutorial: Build an ASP.NET Core and Azure SQL Database app in Azure App Service](https://docs.microsoft.com/en-us/azure/app-service/tutorial-dotnetcore-sqldb-app?pivots=platform-linux)
+* [Deploy the Open Service Mesh AKS add-on using Azure CLI](https://docs.microsoft.com/en-us/azure/aks/open-service-mesh-deploy-addon-az-cli)
