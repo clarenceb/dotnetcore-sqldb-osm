@@ -1,0 +1,10 @@
+.github
+.git
+bin/
+obj/
+password.txt
+localdatabase.db
+appsettings.Development.json
+appsettings.Production.json
+appsettings.Production.json.template
+

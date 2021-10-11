@@ -1,0 +1,5 @@
+{
+  "ConnectionStrings": {
+    "MyDbConnection": $DB_CONN_STRING
+  }
+}

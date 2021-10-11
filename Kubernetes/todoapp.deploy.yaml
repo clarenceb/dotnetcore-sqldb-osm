@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todoapp
+  labels:
+    app: todoapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: todoapp
+  template:
+    metadata:
+      labels:
+        app: todoapp
+    spec:
+      containers:
+      - name: todoapp
+        image: $ACR_NAME.azurecr.io/todoapp:v4
+        ports:
+        - containerPort: 80
+        env:
+          - name: ASPNETCORE_ENVIRONMENT
+            value: Production
+        volumeMounts:
+          - mountPath: "/app/configs"
+            name: tododb-connstr
+            readOnly: true
+      imagePullSecrets:
+      - name: todo-registry
+      volumes:
+        - name: tododb-connstr
+          secret:
+            secretName: appsettings

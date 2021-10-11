@@ -286,3 +286,12 @@ __pycache__/
 *.btm.cs
 *.odx.cs
 *.xsd.cs
+
+# Local DB for development
+localdatabase.db
+
+# Prod DB password file
+password.txt
+
+# App Settings production file
+appsettings.Production.json

@@ -17,9 +17,12 @@ namespace DotNetCoreSqlDb
 {
     public class Startup
     {
-        public Startup(IConfiguration configuration)
+        private readonly IWebHostEnvironment _env;
+
+        public Startup(IConfiguration configuration, IWebHostEnvironment env) 
         {
             Configuration = configuration;
+            _env = env;
         }
 
         public IConfiguration Configuration { get; }
@@ -28,13 +31,24 @@ namespace DotNetCoreSqlDb
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllersWithViews();
-            services.AddDbContext<MyDatabaseContext>(options =>
+
+              // Checks ASPNETCORE_ENVIRONMENT
+            if (_env.IsDevelopment())
+            {
+                services.AddDbContext<MyDatabaseContext>(options =>
                     options.UseSqlite("Data Source=localdatabase.db"));
+            }
+            else
+            {
+                services.AddDbContext<MyDatabaseContext>(options =>
+                    options.UseSqlServer(Configuration.GetConnectionString("MyDbConnection")));
+            }
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
+            // Checks ASPNETCORE_ENVIRONMENT
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
