@@ -1,11 +1,11 @@
-﻿@model IEnumerable<DotNetCoreSqlDb.Models.Todo>
+﻿@model TodoIndex
 
 @{
     ViewData["Title"] = "Index";
 }
 
 <h1>Index</h1>
-
+<h2>@(Model.TimeOfDay)</h2>
 <p>
     <a asp-action="Create">Create New</a>
 </p>
@@ -13,16 +13,16 @@
     <thead>
         <tr>
             <th>
-                @Html.DisplayNameFor(model => model.Description)
+                Description
             </th>
             <th>
-                @Html.DisplayNameFor(model => model.CreatedDate)
+                Created Date
             </th>
             <th></th>
         </tr>
     </thead>
     <tbody>
-@foreach (var item in Model) {
+@foreach (var item in Model.Todos) {
         <tr>
             <td>
                 @Html.DisplayFor(modelItem => item.Description)

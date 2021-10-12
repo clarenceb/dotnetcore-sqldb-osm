@@ -1,3 +1,8 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: todoapp
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -16,12 +21,14 @@ spec:
     spec:
       containers:
       - name: todoapp
-        image: $ACR_NAME.azurecr.io/todoapp:v4
+        image: $ACR_NAME.azurecr.io/todoapp:v6
         ports:
         - containerPort: 80
         env:
           - name: ASPNETCORE_ENVIRONMENT
             value: Production
+          - name: TIMESERVER_API
+            value: http://timeserver.todoapis.svc.cluster.local:8000/time
         volumeMounts:
           - mountPath: "/app/configs"
             name: tododb-connstr
@@ -32,3 +39,4 @@ spec:
         - name: tododb-connstr
           secret:
             secretName: appsettings
+      serviceAccountName: todoapp

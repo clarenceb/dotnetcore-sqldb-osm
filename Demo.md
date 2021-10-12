@@ -115,7 +115,7 @@ Build and deploy the application
 Build image in ACR:
 
 ```sh
-az acr build --image todoapp:v4 \
+az acr build --image todoapp:v6 \
   --registry $ACR_NAME \
   --file Dockerfile .
 ```
@@ -198,9 +198,12 @@ Configure OSM
 
 ```sh
 kubectl get meshconfig osm-mesh-config -n kube-system -o yaml
-kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"traffic":{"enablePermissiveTrafficPolicyMode":false}}}' --type=merge
+kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"traffic":{"enablePermissiveTrafficPolicyMode":true}}}' --type=merge
 kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"traffic":{"enableEgress":false}}}' --type=merge
-kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"featureFlags":{"enableEgressPolicy":true}}}' --type=merge
+kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"featureFlags":{"enableEgressPolicy":false}}}' --type=merge
+
+kubectl rollout restart deploy/osm-controller -n kube-system
+kubectl rollout restart deploy/osm-injector -n kube-system
 ```
 
 Install OSM client library
@@ -222,8 +225,7 @@ osm namespace add todoapp
 osm namespace list
 kubectl get pod -n todoapp
 
-kubectl delete deploy todoapp -n todoapp
-cat Kubernetes/todoapp.deploy.yaml | envsubst | kubectl apply -f - -n todoapp
+kubectl rollout restart -n todoapp deploy/todoapp
 kubectl get pod -n todoapp
 ```
 
@@ -235,11 +237,11 @@ We can check the pod logs:
 
 ```sh
 # Todoapp
-kubectl logs pod/todoapp-d87454c7f-cd6sw -n todoapp todoapp -f
+kubectl logs $(kubectl get pod -n todoapp -l app=todoapp -o jsonpath='{.items[0].metadata.name}') -n todoapp todoapp -f
 # --> An error occurred using the connection to database 'coreDB' on server 'tcp:todoserver-xxxxx.database.windows.net,1433'.
 
 # OSM sidecar
-kubectl logs pod/todoapp-d87454c7f-cd6sw -n todoapp envoy -f
+kubectl logs $(kubectl get pod -n todoapp -l app=todoapp -o jsonpath='{.items[0].metadata.name}') -n todoapp envoy -f
 # --> "upstream_response_timeout"}
 ```
 
@@ -250,10 +252,61 @@ Enable egress traffic to allow access to Azure SQL DB:
 
 ```sh
 kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"traffic":{"enableEgress":true}}}' --type=merge
-kubectl delete deploy todoapp -n todoapp
-cat Kubernetes/todoapp.deploy.yaml | envsubst | kubectl apply -f - -n todoapp
+kubectl rollout restart deploy/osm-controller -n kube-system
+kubectl rollout restart deploy/osm-injector -n kube-system
+
+kubectl rollout restart -n todoapp deploy/todoapp
 kubectl get pod -n todoapp
 ```
+
+The todoapp should now work as it can connect to Azure SQL DB.
+
+Deploy an API in the cluster
+----------------------------
+
+Build image in ACR:
+
+```sh
+az acr build --image timeserver:v1 \
+  --registry $ACR_NAME \
+  --file apis/timeserver/Dockerfile ./apis/timeserver
+```
+
+Add the pull secret:
+
+```sh
+kubectl create ns todoapis
+kubectl create secret docker-registry todo-registry --docker-server=$ACR_NAME.azurecr.io --docker-username=$ACR_USER --docker-password=$ACR_PASSWORD --docker-email=admin@example.com -n todoapis
+```
+
+```sh
+osm namespace add todoapis
+osm namespace list
+
+cat Kubernetes/timeserver.deploy.yaml | envsubst | kubectl apply -f - -n todoapis
+kubectl apply -f Kubernetes/timeserver.svc.yaml -n todoapis
+
+kubectl get pod -n todoapis
+```
+
+Define access policies
+----------------------
+
+First, block all access to the api:
+
+```sh
+kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"traffic":{"enablePermissiveTrafficPolicyMode":false}}}' --type=merge
+```
+
+Browser shows: "Time unavailable: An error occurred while sending the request."
+
+Now define an access policy just for todoapp to access the timeserver:
+
+```sh
+kubectl apply -f Kubernetes/timeserver-accesspolicy.yaml
+```
+
+Browser shows: "Current time is xxxx-xx-xx yy:yy:yy ...snip..."
 
 OSM troubleshooting
 -------------------

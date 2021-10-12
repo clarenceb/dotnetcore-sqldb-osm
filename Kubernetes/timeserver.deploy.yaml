@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: timeserver
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: timeserver
+  labels:
+    app: timeserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: timeserver
+  template:
+    metadata:
+      labels:
+        app: timeserver
+    spec:
+      containers:
+      - name: timeserver
+        image: $ACR_NAME.azurecr.io/timeserver:v1
+        ports:
+        - containerPort: 8000
+      imagePullSecrets:
+      - name: todo-registry
+      serviceAccountName: timeserver

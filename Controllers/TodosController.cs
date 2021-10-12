@@ -6,22 +6,30 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using DotNetCoreSqlDb.Models;
+using DotNetCoreSqlDb.Services;
 
 namespace DotNetCoreSqlDb.Controllers
 {
     public class TodosController : Controller
     {
         private readonly MyDatabaseContext _context;
+        private readonly Timeserver _timeserver;
 
         public TodosController(MyDatabaseContext context)
         {
             _context = context;
+            _timeserver = new Timeserver();
         }
 
         // GET: Todos
         public async Task<IActionResult> Index()
         {
-            return View(await _context.Todo.ToListAsync());
+            var model = new TodoIndex {
+                Todos = await _context.Todo.ToListAsync(),
+                TimeOfDay = await _timeserver.GetTimeOfDay()
+            };
+
+            return View(model);
         }
 
         // GET: Todos/Details/5

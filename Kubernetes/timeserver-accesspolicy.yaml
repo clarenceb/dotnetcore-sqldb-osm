@@ -1,0 +1,32 @@
+---
+kind: TrafficTarget
+apiVersion: access.smi-spec.io/v1alpha3
+metadata:
+  name: timeserver
+  namespace: todoapis
+spec:
+  destination:
+    kind: ServiceAccount
+    name: timeserver
+    namespace: todoapis
+  rules:
+  - kind: HTTPRouteGroup
+    name: timeserver-routes
+    matches:
+    - time
+  sources:
+  - kind: ServiceAccount
+    name: todoapp
+    namespace: todoapp
+---
+apiVersion: specs.smi-spec.io/v1alpha4
+kind: HTTPRouteGroup
+metadata:
+  name: timeserver-routes
+  namespace: todoapis
+spec:
+  matches:
+  - name: time
+    pathRegex: /time
+    methods:
+    - GET

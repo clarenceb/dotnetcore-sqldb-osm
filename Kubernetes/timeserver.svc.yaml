@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: timeserver
+  labels: 
+    app: timeserver
+spec:
+  type: ClusterIP
+  selector:
+    app: timeserver
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
