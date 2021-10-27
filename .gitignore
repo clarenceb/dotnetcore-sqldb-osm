@@ -295,3 +295,6 @@ password.txt
 
 # App Settings production file
 appsettings.Production.json
+
+Kubernetes/cm-stable-prometheus-server.yml*
+
