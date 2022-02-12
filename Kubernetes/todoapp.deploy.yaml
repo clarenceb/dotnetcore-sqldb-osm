@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: todoapp
-        image: $ACR_NAME.azurecr.io/todoapp:v6
+        image: $ACR_NAME.azurecr.io/todoapp:v1
         ports:
         - containerPort: 80
         env:

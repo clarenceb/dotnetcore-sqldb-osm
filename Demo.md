@@ -1,23 +1,29 @@
-ASP.NET Core and Azure SQL Database app with OSM on AKS
-=======================================================
+Add OSM to an existing app running on AKS
+=========================================
 
-Based on [Tutorial: Build an ASP.NET Core and Azure SQL Database app in Azure App Service](https://docs.microsoft.com/en-us/azure/app-service/tutorial-dotnetcore-sqldb-app?pivots=platform-linux).
+This is an example application based on the [Tutorial: Build an ASP.NET Core and Azure SQL Database app in Azure App Service](https://docs.microsoft.com/en-us/azure/app-service/tutorial-dotnetcore-sqldb-app?pivots=platform-linux) which has been modified for the purposes of demonstrating some capabilities of Open Service Mesh (OSM).
+
+* Tested on OSM v0.11.1 (via AKS add-on)
 
 Prequisites
 -----------
 
-* Common variables:
+* Common variables (adjust as appropriate):
 
 ```sh
 LOCATION="australiaeast"
-RG_NAME="osm-demo"
-CLUSTER="osm-demo"
+RG_NAME="aks-demos"
+CLUSTER="aks-demos"
 NODE_COUNT=3
+```
 
+Create the Azure Resource Group to contain all Azure Resources for the demo:
+
+```sh
 az group create --name $RG_NAME --location $LOCATION
 ```
 
-* Basic AKS cluster and kubeconfig accessible locally
+Create a basic AKS cluster with the OSM add-on enabled:
 
 ```sh
 az provider register --namespace Microsoft.OperationsManagement
@@ -26,7 +32,7 @@ az provider register --namespace Microsoft.OperationalInsights
 az provider show -n Microsoft.OperationsManagement -o table
 az provider show -n Microsoft.OperationalInsights -o table
 
-az aks create --resource-group $RG_NAME --name $CLUSTER --node-count $NODE_COUNT --enable-addons monitoring --generate-ssh-keys
+az aks create --resource-group $RG_NAME --name $CLUSTER --node-count $NODE_COUNT --enable-addons monitoring,open-service-mesh --generate-ssh-keys
 
 az aks get-credentials --resource-group $RG_NAME --name $CLUSTER
 az aks install-cli
@@ -34,17 +40,36 @@ az aks install-cli
 kubectl get node -o wide
 ```
 
-* OpenSSL installed locally
+or enable OSM on an existing AKS cluster:
+
+```sh
+az aks enable-addons \
+  --resource-group $RG_NAME \
+  --name $CLUSTER \
+  --addons open-service-mesh
+```
+
+Verify OSM is installed:
+
+```sh
+az aks list -g $RG_NAME -o json | jq -r '.[].addonProfiles.openServiceMesh.enabled'
+
+kubectl get pods -n kube-system --selector app.kubernetes.io/name=openservicemesh.io
+```
+
+Ensure OpenSSL is installed locally:
 
 ```sh
 sudo apt-get update -y
 sudo apt-get install -y openssl
 ```
 
-* Helm 3
+Install Helm 3:
 
-Steps
------
+* Follow the [official installation instructions](https://helm.sh/docs/intro/install/)
+
+Demo steps
+----------
 
 Create the SQL DB:
 
@@ -93,9 +118,12 @@ DB_CONN_STRING=$(az sql db show-connection-string \
 export DB_CONN_STRING
 cat appsettings.Production.json.template | envsubst > appsettings.Production.json
 
-# Target SQL Server (instead of SQLite)
+# Target SQL Server (instead of SQLite) dialect
+# (Only needs to be done once)
 rm -rf Migrations
 ASPNETCORE_ENVIRONMENT=Production dotnet ef migrations add InitialCreate
+
+# Apply schema migrations to database
 ASPNETCORE_ENVIRONMENT=Production dotnet ef database update
 ```
 
@@ -109,58 +137,23 @@ az acr create --resource-group $RG_NAME \
   --name $ACR_NAME --sku Basic --admin-enabled
 ```
 
-Install OSM via AKS add-on
---------------------------
-
-```sh
-az extension add --name aks-preview
-# or
-az extension update --name aks-preview
-
-az feature register --namespace "Microsoft.ContainerService" --name "AKS-OpenServiceMesh"
-az feature list -o table --query "[?contains(name, 'Microsoft.ContainerService/AKS-OpenServiceMesh')].{Name:name,State:properties.state}"
-az provider register --namespace Microsoft.ContainerService
-
-az aks enable-addons --addons open-service-mesh -g $RG_NAME -n $CLUSTER
-az aks list -g $RG_NAME -o json | jq -r '.[].addonProfiles.openServiceMesh.enabled'
-
-kubectl get deployments -n kube-system --selector app=osm-controller
-kubectl get pods -n kube-system --selector app=osm-controller
-kubectl get services -n kube-system --selector app=osm-controller
-```
-
-Configure OSM
--------------
-
-```sh
-kubectl get meshconfig osm-mesh-config -n kube-system -o yaml
-kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"traffic":{"enablePermissiveTrafficPolicyMode":true}}}' --type=merge
-kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"traffic":{"enableEgress":false}}}' --type=merge
-kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"featureFlags":{"enableEgressPolicy":false}}}' --type=merge
-
-kubectl rollout restart deploy/osm-controller -n kube-system
-kubectl rollout restart deploy/osm-injector -n kube-system
-```
-
-Install OSM client library
---------------------------
-
-```sh
-OSM_VERSION=v0.9.2
-curl -sL "https://github.com/openservicemesh/osm/releases/download/$OSM_VERSION/osm-$OSM_VERSION-linux-amd64.tar.gz" | tar -vxzf -
-sudo mv ./linux-amd64/osm /usr/local/bin/osm
-osm version
-```
-
 Build and deploy the application
 --------------------------------
 
-Build image in ACR:
+Build todo app in ACR:
 
 ```sh
-az acr build --image todoapp:v6 \
+az acr build --image todoapp:v1 \
   --registry $ACR_NAME \
   --file Dockerfile .
+```
+
+Build timeserver in ACR:
+
+```sh
+az acr build --image timeserver:v1 \
+  --registry $ACR_NAME \
+  --file apis/timeserver/Dockerfile ./apis/timeserver
 ```
 
 Deploy ingress controller:
@@ -178,12 +171,28 @@ helm install app-ingress ingress-nginx/ingress-nginx \
     --set defaultBackend.nodeSelector."kubernetes\.io/os"=linux \
     --set controller.ingressClass=app-public \
     --set controller.ingressClassResource.name=app-public \
-    --set controller.ingressClassResource.controllerValue="k8s.io/ingress-nginx"
+    --set controller.ingressClassResource.controllerValue="k8s.io/ingress-nginx" \
+    --version 4.0.17
 
 kubectl wait --namespace app-ingress \
   --for=condition=ready pod \
   --selector=app.kubernetes.io/component=controller \
   --timeout=120s
+
+# Get the ingress service public ip
+INGRESS_IP=$(kubectl get svc app-ingress-ingress-nginx-controller -n app-ingress -o jsonpath="{.status.loadBalancer.ingress[*].ip}")
+
+# Name to associate with public IP address
+DNSNAME=$ACR_NAME
+
+# Get the resource-id of the public ip
+PUBLICIPID=$(az network public-ip list --query "[?ipAddress!=null]|[?contains(ipAddress, '$INGRESS_IP')].[id]" --output tsv)
+
+# Update public ip address with dns name
+az network public-ip update --ids $PUBLICIPID --dns-name $DNSNAME
+
+# Get the FQDN for the ingress endpoint
+INGRESS_FQDN=$(az network public-ip show --ids $PUBLICIPID --query dnsSettings.fqdn -o tsv)
 ```
 
 Create Image Pull Secret(s):
@@ -203,14 +212,25 @@ kubectl create secret docker-registry todo-registry --docker-server=$ACR_NAME.az
 Deploy app:
 
 ```sh
-kubectl create ns todoapp
-export ACR_NAME
-
 kubectl create secret generic appsettings --from-file=appsettings.Production.json -n todoapp
 
+export ACR_NAME
 cat Kubernetes/todoapp.deploy.yaml | envsubst | kubectl apply -f - -n todoapp
 kubectl apply -f Kubernetes/todoapp.svc.yaml -n todoapp
-kubectl apply -f Kubernetes/todoapp.ingress.yaml -n todoapp
+
+export INGRESS_FQDN
+cat Kubernetes/todoapp.ingress.yaml | envsubst | kubectl apply -f - -n todoapp
+
+kubectl get pod -n todoapp
+```
+
+Deploy API:
+
+```sh
+cat Kubernetes/timeserver.deploy.yaml | envsubst | kubectl apply -f - -n todoapis
+kubectl apply -f Kubernetes/timeserver.svc.yaml -n todoapis
+
+kubectl get pod -n todoapis
 ```
 
 Access the Todo App and verify it is working and stores todos in Azure SQL DB:
@@ -221,16 +241,65 @@ kubectl get ingress -n todoapp
 # Browse to: http://<ingress_ip>
 ```
 
+Add TLS on ingress endpoint:
+
+```sh
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+
+# Install Cert-Manager so we can issue a free TLS certificate for our app ingress
+kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v0.14.3/cert-manager.crds.yaml
+helm install \
+  cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --version v1.7.1 \
+  --set installCRDs=true
+
+kubectl get pod -n cert-manager
+
+# Update with a validate e-mail address for Let's Encrypt to issue a certificate
+export ACME_EMAIL="your@email-address"
+cat Kubernetes/cert-issuer.yaml | envsubst | kubectl apply -f - -n todoapp
+```
+
+############################################
+
+Configure OSM
+-------------
+
+```sh
+kubectl get meshconfig osm-mesh-config -n kube-system -o yaml
+kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"traffic":{"enablePermissiveTrafficPolicyMode":true}}}' --type=merge
+kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"traffic":{"enableEgress":true}}}' --type=merge
+kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"featureFlags":{"enableEgressPolicy":true}}}' --type=merge
+```
+
+Install OSM client library
+--------------------------
+
+```sh
+OSM_VERSION=v0.11.1
+curl -sL "https://github.com/openservicemesh/osm/releases/download/$OSM_VERSION/osm-$OSM_VERSION-linux-amd64.tar.gz" | tar -vxzf -
+sudo mv ./linux-amd64/osm /usr/local/bin/osm
+osm version
+```
+
 Onboard todoapp to OSM
 ----------------------
 
 ```sh
 osm namespace add todoapp
+osm namespace add todoapis
 osm namespace list
 kubectl get pod -n todoapp
+kubectl get pod -n todoapis
 
 kubectl rollout restart -n todoapp deploy/todoapp
+kubectl rollout restart -n todoapis deploy/timeserver
+
 kubectl get pod -n todoapp
+kubectl get pod -n todoapis
 ```
 
 The todoapp should not work as it needs egress to Azure SQL DB.
@@ -264,29 +333,6 @@ kubectl get pod -n todoapp
 ```
 
 The todoapp should now work as it can connect to Azure SQL DB.
-
-Deploy an API in the cluster
-----------------------------
-
-Build image in ACR:
-
-```sh
-az acr build --image timeserver:v1 \
-  --registry $ACR_NAME \
-  --file apis/timeserver/Dockerfile ./apis/timeserver
-```
-
-Deploy API(s):
-
-```sh
-osm namespace add todoapis
-osm namespace list
-
-cat Kubernetes/timeserver.deploy.yaml | envsubst | kubectl apply -f - -n todoapis
-kubectl apply -f Kubernetes/timeserver.svc.yaml -n todoapis
-
-kubectl get pod -n todoapis
-```
 
 Define access policies
 ----------------------
@@ -456,6 +502,182 @@ kubectl port-forward -n jaeger $JAEGER_POD  16686:16686
 ```
 
 Browse to: http://localhost:16686/
+
+Configure NGINX Ingress integration with OSM
+--------------------------------------------
+
+Configure FQDN for the ingress IP for SNI to work:
+
+```sh
+# Name to associate with public IP address
+DNSNAME="osmdemo-$(openssl rand -hex 3)"
+PUBLIC_IP=$(kubectl get svc app-ingress-ingress-nginx-controller -n app-ingress -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
+
+# Get the resource-id of the public ip
+PUBLICIPID=$(az network public-ip list --query "[?ipAddress!=null]|[?contains(ipAddress, '$PUBLIC_IP')].[id]" --output tsv)
+
+# Update public ip address with dns name
+az network public-ip update --ids $PUBLICIPID --dns-name $DNSNAME
+```
+
+We can restrict ingress traffic on backends to authorised clients (i.e. NGINX ingress).
+
+```sh
+osm_namespace=kube-system
+osm_mesh_name=osm
+
+nginx_ingress_namespace=app-ingress
+nginx_ingress_service=app-ingress-ingress-nginx-controller
+nginx_ingress_host="$(kubectl -n "$nginx_ingress_namespace" get service "$nginx_ingress_service" -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+nginx_ingress_port="$(kubectl -n "$nginx_ingress_namespace" get service "$nginx_ingress_service" -o jsonpath='{.spec.ports[?(@.name=="http")].port}')"
+
+kubectl label ns "$nginx_ingress_namespace" openservicemesh.io/monitored-by="$osm_mesh_name"
+
+cat<<EOF | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: httpbin
+  namespace: httpbin
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: app-public
+  rules:
+  - host: osmdemo-b7c482.australiaeast.cloudapp.azure.com
+    http:
+      paths:
+      - path: /httpbin(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: httpbin
+            port:
+              number: 14001
+---
+kind: IngressBackend
+apiVersion: policy.openservicemesh.io/v1alpha1
+metadata:
+  name: httpbin
+  namespace: httpbin
+spec:
+  backends:
+  - name: httpbin
+    port:
+      number: 14001
+      protocol: http
+  sources:
+  - kind: Service
+    namespace: "$nginx_ingress_namespace"
+    name: "$nginx_ingress_service"
+EOF
+
+curl -sI http://"$nginx_ingress_host":"$nginx_ingress_port"/get
+
+kubectl edit meshconfig osm-mesh-config -n "$osm_namespace"
+```
+
+Add the following under **certificate**:
+
+```yaml
+ingressGateway:
+  secret:
+    name: osm-nginx-client-cert
+    namespace: kube-system
+  subjectAltNames:
+  - app-ingress-ingress-nginx.app-ingress.cluster.local
+  validityDuration: 24h
+```
+
+```sh
+kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"traffic":{"useHTTPSIngress":true}}}'  --type=merge
+```
+
+Add TLS with Cert-Manager and Let's Encrypt:
+
+```sh
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+
+kubectl create ns cert-manager
+
+helm install \
+  cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --version v1.6.0 \
+  --set installCRDs=true
+
+kubectl apply -f Kubernetes/cert-issuer.yaml -n httpbin
+```
+
+Update Ingress to use TLS on frontend as well:
+
+```sh
+kubectl apply -f - <<EOF
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: httpbin
+  namespace: httpbin
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    # proxy_ssl_name for a service is of the form <service-account>.<namespace>.cluster.local
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_ssl_name "httpbin.httpbin.cluster.local";
+    nginx.ingress.kubernetes.io/proxy-ssl-secret: "kube-system/osm-nginx-client-cert"
+    nginx.ingress.kubernetes.io/proxy-ssl-verify: "on"
+    cert-manager.io/issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: app-public
+  tls:
+  - hosts:
+    - osmdemo-b7c482.australiaeast.cloudapp.azure.com
+    secretName: httpbin-tls
+  rules:
+  - host: osmdemo-b7c482.australiaeast.cloudapp.azure.com
+    http:
+      paths:
+      - path: /httpbin(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: httpbin
+            port:
+              number: 14001
+---
+apiVersion: policy.openservicemesh.io/v1alpha1
+kind: IngressBackend
+metadata:
+  name: httpbin
+  namespace: httpbin
+spec:
+  backends:
+  - name: httpbin
+    port:
+      number: 14001
+      protocol: https
+    tls:
+      skipClientCertValidation: false
+  sources:
+  - kind: Service
+    name: "$nginx_ingress_service"
+    namespace: "$nginx_ingress_namespace"
+  - kind: AuthenticatedPrincipal
+    name: app-ingress-ingress-nginx.app-ingress.cluster.local
+EOF
+
+kubectl label namespace app-ingress cert-manager.io/disable-validation=true
+
+helm upgrade app-ingress ingress-nginx/ingress-nginx \
+    --namespace app-ingress \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-dns-label-name"=osmdemo-b7c482.australiaeast.cloudapp.azure.com
+```
 
 OSM troubleshooting
 -------------------
