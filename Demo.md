@@ -449,108 +449,70 @@ You should see the page change styles approximately 50% of the time, correspondi
 STEP 7 - OSM observability
 --------------------------
 
-Enable OSM metrics scraping:
+Open Service Mesh (OSM) generates detailed metrics related to all traffic within the mesh. These metrics provide insights into the behavior of applications in the mesh helping users to troubleshoot, maintain, and analyze their applications.
+
+Enable OSM metrics scraping for Prometheus server:
 
 ```sh
 osm metrics enable --namespace todoapp
 osm metrics enable --namespace todoapis
 ```
 
-* Prometheus/Grafana
+* Grafana
 
-TODO: https://release-v1-0.docs.openservicemesh.io/docs/guides/observability/metrics/
-
-Open Service Mesh (OSM) generates detailed metrics related to all traffic within the mesh. These metrics provide insights into the behavior of applications in the mesh helping users to troubleshoot, maintain, and analyze their applications.
-
-Deploy and configure Prometheus server:
+Port forward to Grafana and log in (user: admin, password: admin):
 
 ```sh
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo update
-helm install stable prometheus-community/prometheus
+kubectl --namespace osm-system port-forward svc/osm-grafana 3000:3000
 ```
 
-Prometheus metrics collection is enabled automatically on namespaces that have been onboarded via `osm namespace add ...`.
+In Grafana on the home page, click on search (magnifying glas icon).
 
-Verify Prometheus is correctly configured to scrape OSM mesh and API endpoints:
+Choose either:
 
-```sh
-PROM_POD_NAME=$(kubectl get pods -l "app=prometheus,component=server" -o jsonpath="{.items[0].metadata.name}")
-kubectl --namespace default port-forward $PROM_POD_NAME 9090
-```
+* "OSM Control Plane" to view control plane dashboards
 
-Open a browser up to http://localhost:9090/targets
+  * View the "OSM Data plane Performance Metrics" dashboard
 
-Deploy and configure Grafana:
+* "OSM Data Plane" to view data plane dashboards
 
-```sh
-helm repo add grafana https://grafana.github.io/helm-charts
-helm repo update
-helm install osm-grafana grafana/grafana
-```
+  * View the "OSM Data plane Performance Metrics" dashboard
 
-Retrieve the default Grafana password:
-
-```sh
-kubectl get secret --namespace default osm-grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
-```
-
-Port forward to Grafana and log in (user: admin, password: see above):
-
-```sh
-GRAF_POD_NAME=$(kubectl get pods -l "app.kubernetes.io/name=grafana" -o jsonpath="{.items[0].metadata.name}")
-kubectl port-forward $GRAF_POD_NAME 3000
-```
-
-Add a datasource in Grafan for Prometheus:
-
-* Configuration / Data Sources / Add data source ([link](http://localhost:3000/datasources/new))
-* Select Prometheus
-* Update URL: `stable-prometheus-server.default.svc.cluster.local`
-* Click **Save & test**
-
-Import OSM dashboard:
-
-* Download JSON dashboards for Grafana from here: https://github.com/openservicemesh/osm/tree/release-v0.9/charts/osm/grafana/dashboards
-* Click *`+`* / Import ([link](http://localhost:3000/dashboard/import))
-* Select "Upload JSON file"
-* Click **Load**
-* Select your Prometheus data source (if prompted)
-* Click Import
-
-You will now see the Grafana dashboards for OSM.
+Adjust the time period on each dashboard (e.g. last 15 mins) and try changing the selected namespaces.
 
 * Jaeger
 
-TODO:
-
-kubectl patch meshconfig osm-mesh-config -n osm-system -p '{"spec":{"observability":{"tracing":{"enable":true,"address": "jaeger.osm-system.svc.cluster.local","port":9411,"endpoint":"/api/v2/spans"}}}}'  --type=merge
-
-https://release-v1-0.docs.openservicemesh.io/docs/guides/observability/tracing/#view-the-jaeger-ui-with-port-forwarding
-
-
-Follow the steps [here](https://docs.microsoft.com/en-us/azure/aks/open-service-mesh-open-source-observability#deploy-and-configure-a-jaeger-operator-on-kubernetes-for-osm).
+Configure OSM for tracing with Jaeger:
 
 ```sh
-kubectl create namespace jaeger
+kubectl get meshconfig osm-mesh-config -n osm-system
 
-kubectl apply -f Kubernetes/jaeger.yaml
-kubectl apply -f Kubernetes/jaeger-rbac.yaml
-kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"observability":{"tracing":{"enable":true, "address": "jaeger.jaeger.svc.cluster.local"}}}}' --type=merge
+kubectl patch meshconfig osm-mesh-config -n osm-system -p '{"spec":{"observability":{"tracing":{"enable":true,"address": "jaeger.osm-system.svc.cluster.local","port":9411,"endpoint":"/api/v2/spans"}}}}'  --type=merge
+```
 
-JAEGER_POD=$(kubectl get pods -n jaeger --no-headers  --selector app=jaeger | awk 'NR==1{print $1}')
-kubectl port-forward -n jaeger $JAEGER_POD  16686:16686
+Port forward to the Jaeger instance to view some traces:
+
+```sh
+JAEGER_POD=$(kubectl get pod -n osm-system --selector "app=jaeger" -o name)
+kubectl port-forward -n osm-system $JAEGER_POD 16686:16686
+# CTRL+C to exit
 ```
 
 Browse to: http://localhost:16686/
+
+Select:
+
+* Service: `todoapp.`
+* Click button `Find Traces`
+* Select one of the traces to view the tracing spans
+* Expand Tags to view the metadata associated with the span
+* Click Deep Dependency Graph to to view dependency relationships
+* Click System Architecture / DAG to view the call graph
 
 Reset demo
 ----------
 
 ```sh
-# Enable permissive traffic policy mode
-kubectl patch meshconfig osm-mesh-config -n osm-system -p '{"spec":{"traffic":{"enablePermissiveTrafficPolicyMode":true}}}' --type=merge
-
 # Remove access and egress policies
 kubectl delete -f Kubernetes/todoapp.egresspolicy.yaml
 kubectl delete -f Kubernetes/timeserver-accesspolicy.yaml
@@ -562,6 +524,9 @@ kubectl delete -f Kubernetes/todoapp-v2.deploy.yaml
 # Remove todoapp and todoapi from the mesh
 osm namespace remove todoapi
 osm namespace remove todoapp
+
+# Enable permissive traffic policy mode
+kubectl patch meshconfig osm-mesh-config -n osm-system -p '{"spec":{"traffic":{"enablePermissiveTrafficPolicyMode":true}}}' --type=merge
 
 # Restart app to run without the mesh
 kubectl rollout restart -n todoapp deploy/todoapi
@@ -575,11 +540,6 @@ Full cleanup
 az group delete -n $RG_NAME
 ```
 
-TODO
-----
-
-* Add fine grained egress access policies
-
 Resources
 ---------
 
@@ -587,8 +547,3 @@ Resources
 * [Tutorial: Build an ASP.NET Core and Azure SQL Database app in Azure App Service](https://docs.microsoft.com/en-us/azure/app-service/tutorial-dotnetcore-sqldb-app?pivots=platform-linux) - the original app code for the Todo app
 * [Setup OSM](https://release-v1-0.docs.openservicemesh.io/docs/getting_started/setup_osm/) - self-installed version based on the OSS distribution
 * [Ingress with Contour](https://release-v1-0.docs.openservicemesh.io/docs/demos/ingress_contour/)
-
-TODO (Optional)
-
-- Styling improvements (CSS) - different colours for good and bad client
-- mTLS with wireshark
