@@ -333,62 +333,118 @@ Browse to: `http://$INGRESS_FQDN`
 
 RESULT: The todoapp should not work:
 
-1) It needs a IngressBackend policy defined so the Contour ingress can access services in the mesh
+It needs a IngressBackend policy defined so the Contour ingress can access services in the mesh
 
 ```sh
 kubectl apply -f Kubernetes/todoapp.ingress.backend.yaml
 ```
 
-Browse to: `http://$INGRESS_FQDN`, the Todo app should now display with an expected error (DB access denied)
-
-2) Egress is disabled by default so the app can't access Azure SQL DB
-
-Error displayed in browser: "An error occurred while processing your request."
-
-To fix this error we can grant egress access to Azure SQL DB:
-
-```sh
-```
-
-Browse to: `http://$INGRESS_FQDN`, the Todo app should now work as expected.
+Browse to: `http://$INGRESS_FQDN`, the Todo app should now display with an expected error (DB access is denied due to egress being disabled).
 
 STEP 3 - Define egress policy for external DB access
 ----------------------------------------------------
 
-Enable egress traffic to allow access to Azure SQL DB:
+OSM has Egress disabled by default so the app can't access Azure SQL DB.
+Rather then enable egress globally, you can enable egress on a case-by-case basis.
+
+To fix thie egress error you can grant the `todo` app egress access to Azure SQL DB:
 
 ```sh
-kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"traffic":{"enableEgress":true}}}' --type=merge
-kubectl rollout restart deploy/osm-controller -n kube-system
-kubectl rollout restart deploy/osm-injector -n kube-system
-
-kubectl rollout restart -n todoapp deploy/todoapp
-kubectl get pod -n todoapp
+kubectl apply -f Kubernetes/todoapp.egresspolicy.yaml
 ```
 
-The todoapp should now work as it can connect to Azure SQL DB.
+Browse to: `http://$INGRESS_FQDN`, the Todo app should now work as expected.
 
 Step 4 - Define service-to-service access policies
 --------------------------------------------------
 
-First, block all access to the api:
+First, disable permissive traffic policy mode:
 
 ```sh
-kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"traffic":{"enablePermissiveTrafficPolicyMode":false}}}' --type=merge
+kubectl patch meshconfig osm-mesh-config -n osm-system -p '{"spec":{"traffic":{"enablePermissiveTrafficPolicyMode":false}}}' --type=merge
 ```
 
-Browser shows: "Time unavailable: An error occurred while sending the request."
+Browser displays: "Time server is currently unavailable" where the current time used to appear.
 
-Now define an access policy just for todoapp to access the timeserver:
+This is because all service-to-service traffic in the mesh is now denied by default.
+
+Now define an access policy to permit the todoapp to access the timeserver:
 
 ```sh
 kubectl apply -f Kubernetes/timeserver-accesspolicy.yaml
 ```
 
-Browser shows: "Current time is xxxx-xx-xx yy:yy:yy ...snip..."
+Browser shows: "Current time is: dd MMM YY HH:mm UTC"
 
 STEP 6 - Traffic Split
 ----------------------
+
+Create some basic styling changes to the todoapp and publish a new container image version:
+
+* Style changes in file `Views/Todos/Index.cshtml`
+
+Change:
+
+```html
+<h2>@(Model.TimeOfDay)</h2>
+...
+<table class="table">
+```
+
+to:
+
+```html
+<h2 class="alert alert-info">@(Model.TimeOfDay)</h2>
+...
+<table class="table table-bordered table-dark table-striped">
+```
+
+* Style changes in file `wwwroot/css/site.css`
+
+Append to the end of the file:
+
+```css
+a {
+  color: #fff;
+}
+
+a:hover {
+  color: #fff;
+}
+```
+
+Save changes then rebuild the container image, pushing it to the registry with the `v2` tag:
+
+```sh
+az acr build --image todoapp:v2 \
+  --registry $ACR_NAME \
+  --file Dockerfile .
+```
+
+Deploy v2 of the todoapp:
+
+```sh
+cat Kubernetes/todoapp-v2.deploy.yaml | envsubst | kubectl apply -f -
+
+kubectl get deploy --namespace todoapp
+```
+
+Create a traffic split 50:50 for v1 and v2 of todoapp:
+
+```sh
+kubectl apply -f Kubernetes/todoapp.trafficsplit.yaml
+
+kubectl get service --namespace todoapp
+kubectl describe trafficsplit todoapp -n todoapp
+```
+
+Browse to: `http://$INGRESS_FQDN` and keep reloading the page.
+
+You should see the page change styles approximately 50% of the time, corresponding to our traffic split between v1 and v2.
+
+**TODO:** Traffic Split doesn't seem to be working in this demo!
+
+* For a workig example, see: https://github.com/clarenceb/bookstore#traffic-split-with-smi
 
 STEP 7 - OSM observability
 --------------------------
@@ -401,6 +457,8 @@ osm metrics enable --namespace todoapis
 ```
 
 * Prometheus/Grafana
+
+TODO: https://release-v1-0.docs.openservicemesh.io/docs/guides/observability/metrics/
 
 Open Service Mesh (OSM) generates detailed metrics related to all traffic within the mesh. These metrics provide insights into the behavior of applications in the mesh helping users to troubleshoot, maintain, and analyze their applications.
 
@@ -464,6 +522,13 @@ You will now see the Grafana dashboards for OSM.
 
 * Jaeger
 
+TODO:
+
+kubectl patch meshconfig osm-mesh-config -n osm-system -p '{"spec":{"observability":{"tracing":{"enable":true,"address": "jaeger.osm-system.svc.cluster.local","port":9411,"endpoint":"/api/v2/spans"}}}}'  --type=merge
+
+https://release-v1-0.docs.openservicemesh.io/docs/guides/observability/tracing/#view-the-jaeger-ui-with-port-forwarding
+
+
 Follow the steps [here](https://docs.microsoft.com/en-us/azure/aks/open-service-mesh-open-source-observability#deploy-and-configure-a-jaeger-operator-on-kubernetes-for-osm).
 
 ```sh
@@ -483,12 +548,24 @@ Reset demo
 ----------
 
 ```sh
-kubectl delete namespace todoapp
-kubectl delete namespace todoapis
+# Enable permissive traffic policy mode
+kubectl patch meshconfig osm-mesh-config -n osm-system -p '{"spec":{"traffic":{"enablePermissiveTrafficPolicyMode":true}}}' --type=merge
 
-osm uninstall mesh
- 
-kubectl delete namespace osm-system
+# Remove access and egress policies
+kubectl delete -f Kubernetes/todoapp.egresspolicy.yaml
+kubectl delete -f Kubernetes/timeserver-accesspolicy.yaml
+
+# Remove traffic split and v2 of todoapp
+kubectl delete -f Kubernetes/todoapp.trafficsplit.yaml
+kubectl delete -f Kubernetes/todoapp-v2.deploy.yaml
+
+# Remove todoapp and todoapi from the mesh
+osm namespace remove todoapi
+osm namespace remove todoapp
+
+# Restart app to run without the mesh
+kubectl rollout restart -n todoapp deploy/todoapi
+kubectl rollout restart -n todoapp deploy/todoapp
 ```
 
 Full cleanup
