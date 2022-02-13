@@ -27,9 +27,9 @@ namespace DotNetCoreSqlDb.Services
                         apiResponse = await response.Content.ReadAsStringAsync();
                     }
                 }
-                catch (HttpRequestException ex)
+                catch (HttpRequestException)
                 {
-                    apiResponse = "Time unavailable: " + ex.Message;
+                    apiResponse = "Time server is currently unavailable";
                 }
             }
             return apiResponse;

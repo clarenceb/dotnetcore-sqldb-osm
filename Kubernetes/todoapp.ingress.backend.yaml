@@ -7,10 +7,9 @@ spec:
   backends:
   - name: todoapp
     port:
-      number: 8080
+      number: 80
       protocol: http
   sources:
   - kind: Service
-    namespace: app-ingress
-    name: app-ingress-ingress-nginx-controller
-  
+    namespace: osm-system
+    name: osm-contour-envoy

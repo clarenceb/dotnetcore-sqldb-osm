@@ -298,3 +298,5 @@ appsettings.Production.json
 
 Kubernetes/cm-stable-prometheus-server.yml*
 
+# .NET core release directory
+out/

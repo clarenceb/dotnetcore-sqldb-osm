@@ -1,0 +1,14 @@
+apiVersion: projectcontour.io/v1
+kind: HTTPProxy
+metadata:
+  name: todoapp
+  namespace: todoapp
+spec:
+  virtualhost:
+    fqdn: $INGRESS_FQDN
+  routes:
+  - services:
+    - name: todoapp
+      port: 8080
+    conditions:
+      - prefix: /
