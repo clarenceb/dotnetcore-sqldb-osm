@@ -522,14 +522,14 @@ kubectl delete -f Kubernetes/todoapp.trafficsplit.yaml
 kubectl delete -f Kubernetes/todoapp-v2.deploy.yaml
 
 # Remove todoapp and todoapi from the mesh
-osm namespace remove todoapi
+osm namespace remove todoapis
 osm namespace remove todoapp
 
 # Enable permissive traffic policy mode
 kubectl patch meshconfig osm-mesh-config -n osm-system -p '{"spec":{"traffic":{"enablePermissiveTrafficPolicyMode":true}}}' --type=merge
 
 # Restart app to run without the mesh
-kubectl rollout restart -n todoapp deploy/todoapi
+kubectl rollout restart -n todoapis deploy/timeserver
 kubectl rollout restart -n todoapp deploy/todoapp
 ```
 
