@@ -347,7 +347,7 @@ STEP 3 - Define egress policy for external DB access
 OSM has Egress disabled by default so the app can't access Azure SQL DB.
 Rather then enable egress globally, you can enable egress on a case-by-case basis.
 
-To fix thie egress error you can grant the `todo` app egress access to Azure SQL DB:
+To fix this egress error you can grant the `todo` app egress access to Azure SQL DB:
 
 ```sh
 kubectl apply -f Kubernetes/todoapp.egresspolicy.yaml
@@ -480,7 +480,7 @@ Choose either:
 
 * "OSM Control Plane" to view control plane dashboards
 
-  * View the "OSM Data plane Performance Metrics" dashboard
+  * View the "OSM Control plane Performance Metrics" dashboard
 
 * "OSM Data Plane" to view data plane dashboards
 
