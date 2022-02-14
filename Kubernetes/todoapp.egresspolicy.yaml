@@ -14,11 +14,12 @@ spec:
 
 # For TCP protocol egress ip adresses or CIDR ranges (optional)
   # ipAddresses:
-  #   - <ip_address1>
+  #   - <ip_address1>  # e.g. 192.168.1.20/32
+  #   - <cidr_address1>  # e.g. 192.168.0.0/16
 
-# For HTTPS protocl egress only
+# For HTTPS protocol egress only
   # hosts:
-  # - <fqdn1>
+  # - <fqdn1> # e.g. mydb.domain.com
   # ports:
   # - number: 443
   #   protocol: https

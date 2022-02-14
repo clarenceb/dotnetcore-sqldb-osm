@@ -458,6 +458,14 @@ osm metrics enable --namespace todoapp
 osm metrics enable --namespace todoapis
 ```
 
+(Optional) Create some traffic on the todoapp or manually load and interact with the app in your browser:
+
+* Install the `k6` load test tool (see [installation instructions](https://k6.io/docs/getting-started/installation/))
+
+```sh
+URL=http://$INGRESS_FQDN/ k6 run ./k6-script.js
+```
+
 * Grafana
 
 Port forward to Grafana and log in (user: admin, password: admin):
