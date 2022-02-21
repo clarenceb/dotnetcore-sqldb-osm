@@ -1,10 +1,20 @@
 OSM Demo
 ========
 
+STEP 0 - Kubernetes with OSM installed and app deployed
+-------------------------------------------------------
+
+See steps [here](./Demo.md) to:
+
+* Create the Kubernetes cluster with OSM
+* Deploy the demo app without being part of the service mesh
+
 STEP 1 - Onboard existing app to OSM
 ------------------------------------
 
 ```sh
+kubectl get pod -n osm-system
+
 osm namespace add todoapp
 osm namespace add todoapis
 osm namespace list

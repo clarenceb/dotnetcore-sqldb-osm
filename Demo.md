@@ -27,7 +27,7 @@ NODE_COUNT=3
 az group create --name $RG_NAME --location $LOCATION
 ```
 
-* Create a basic AKS cluster with the OSM add-on enabled:
+* Create a basic AKS cluster:
 
 ```sh
 az provider register --namespace Microsoft.OperationsManagement
@@ -52,11 +52,25 @@ az aks install-cli
 kubectl get node -o wide
 ```
 
-* Install Helm 3:
+* Option 1: Install OSM (via supported AKS add-on):
 
-Follow the [official installation instructions](https://helm.sh/docs/intro/install/)
+```sh
+az aks enable-addons   --resource-group $RG_NAME   --name $CLUSTER   --addons open-service-mesh
 
-* Install OSM:
+kubectl get pods -n kube-system --selector app.kubernetes.io/name=openservicemesh.io
+
+# All pods should be Running:
+NAME                              READY   STATUS    RESTARTS   AGE
+osm-bootstrap-76dffb9c6d-ntvpl    1/1     Running   0          32h
+osm-controller-56dfcb8487-rsdw4   1/1     Running   0          32h
+osm-controller-56dfcb8487-vkkq8   1/1     Running   0          32h
+osm-injector-7559dc959b-gnc4j     1/1     Running   0          32h
+osm-injector-7559dc959b-t8svh     1/1     Running   0          32h
+```
+
+Deploy and configure metrics and tracing for thr OSM AKS add-on -- Prometheus server, Grafana, and Jaegar (see [installation and configuration steps](./Demo-PromGrafanaJaegar.md)).
+
+* Option 2: Install OSM (self-installed via OSS version):
 
 Follow steps here for various platforms: https://release-v1-0.docs.openservicemesh.io/docs/getting_started/setup_osm/
 
@@ -84,17 +98,10 @@ osm install \
     --set contour.enabled=true \
     --set contour.configInline.tls.envoy-client-certificate.name=osm-contour-envoy-client-cert \
     --set contour.configInline.tls.envoy-client-certificate.namespace="$osm_namespace"
-```
 
-* Verify OSM is installed:
+kubectl get pods -n osm-system --selector app.kubernetes.io/name=openservicemesh.io
 
-```sh
-kubectl get pod -n osm-system
-```
-
-All pods should be "Running":
-
-```sh
+# All pods should be "Running"
 NAME                                   READY   STATUS    RESTARTS   AGE
 jaeger-7695dbf8b5-ff8vv                1/1     Running   0          71s
 osm-bootstrap-6df985c6-vrf2n           1/1     Running   0          71s
