@@ -11,5 +11,5 @@ spec:
       protocol: http
   sources:
   - kind: Service
-    namespace: osm-system
-    name: osm-contour-envoy
+    namespace: $ingress_namespace
+    name: $ingress_service

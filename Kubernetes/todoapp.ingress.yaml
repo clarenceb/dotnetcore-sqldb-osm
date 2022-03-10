@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: todo-ingress
+  labels:
+    name: todo-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  rules:
+  - host: $INGRESS_FQDN
+    http:
+      paths:
+      - backend:
+          service:
+            name: todoapp
+            port:
+              number: 8080
+        path: /
+        pathType: Prefix
+  ingressClassName: nginx

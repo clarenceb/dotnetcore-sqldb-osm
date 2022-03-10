@@ -20,7 +20,7 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "7.0.1"
+      "version": "8.2.2"
     },
     {
       "type": "panel",
@@ -60,7 +60,7 @@
         }
       ]
     },
-    "description": "Metrics from service to control plane in Open Service Mesh",
+    "description": "OSM Service to Service Metrics latest",
     "editable": true,
     "gnetId": 11776,
     "graphTooltip": 0,
@@ -132,7 +132,7 @@
           "dataLinks": []
         },
         "percentage": false,
-        "pluginVersion": "7.0.1",
+        "pluginVersion": "8.2.2",
         "pointradius": 2,
         "points": false,
         "renderer": "flot",
@@ -142,8 +142,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "irate(envoy_cluster_upstream_rq_xx{envoy_response_code_class=\"2\",source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"osm-controller\"}[1m])",
-            "interval": "1m",
+            "expr": "irate(envoy_cluster_upstream_rq_xx{envoy_response_code_class=\"2\",source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"$destination_service\"}[1m])",
             "legendFormat": "Time (per minute)",
             "refId": "A"
           }
@@ -158,7 +157,7 @@
           "sort": 0,
           "value_type": "individual"
         },
-        "type": "graph",
+        "type": "timeseries",
         "xaxis": {
           "buckets": null,
           "mode": "time",
@@ -239,7 +238,7 @@
           "dataLinks": []
         },
         "percentage": false,
-        "pluginVersion": "7.0.1",
+        "pluginVersion": "8.2.2",
         "pointradius": 2,
         "points": false,
         "renderer": "flot",
@@ -249,8 +248,8 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "irate(envoy_cluster_upstream_rq_xx{envoy_response_code_class!=\"2\",source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"osm-controller\"}[1m])",
-            "interval": "1m",
+            "expr": "irate(envoy_cluster_upstream_rq_xx{envoy_response_code_class!=\"2\",source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"$destination_service\"}[1m])",
+            "interval": "",
             "legendFormat": "Time (per minute)",
             "refId": "A"
           }
@@ -265,7 +264,7 @@
           "sort": 0,
           "value_type": "individual"
         },
-        "type": "graph",
+        "type": "timeseries",
         "xaxis": {
           "buckets": null,
           "mode": "time",
@@ -341,16 +340,16 @@
         "options": {
           "dataLinks": []
         },
-        "pluginVersion": "7.0.1",
+        "pluginVersion": "8.2.2",
         "targets": [
           {
-            "expr": "sum(envoy_cluster_upstream_cx_active{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"osm-controller\"})",
+            "expr": "sum(envoy_cluster_upstream_cx_active{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"$destination_service\"})",
             "legendFormat": "Connections",
             "refId": "A"
           }
         ],
-        "title": "Active Connections to Control Plane",
-        "type": "graph",
+        "title": "Active Connections between services",
+        "type": "timeseries",
         "timeFrom": null,
         "timeShift": null,
         "renderer": "flot",
@@ -465,12 +464,12 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "sum(irate(envoy_cluster_upstream_cx_tx_bytes_total{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"osm-controller\"}[1m]))",
+            "expr": "sum(irate(envoy_cluster_upstream_cx_tx_bytes_total{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"$destination_service\"}[1m]))",
             "legendFormat": "Bytes sent",
             "refId": "A"
           },
           {
-            "expr": "sum(irate(envoy_cluster_upstream_cx_rx_bytes_total{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"osm-controller\"}[1m]))",
+            "expr": "sum(irate(envoy_cluster_upstream_cx_rx_bytes_total{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"$destination_service\"}[1m]))",
             "legendFormat": "Bytes received",
             "refId": "B"
           }
@@ -479,13 +478,13 @@
         "timeFrom": null,
         "timeRegions": [],
         "timeShift": null,
-        "title": "Traffic to Control Plane",
+        "title": "Traffic from source service perspective",
         "tooltip": {
           "shared": true,
           "sort": 0,
           "value_type": "individual"
         },
-        "type": "graph",
+        "type": "timeseries",
         "xaxis": {
           "buckets": null,
           "mode": "time",
@@ -567,42 +566,42 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "sum(irate(envoy_cluster_upstream_cx_destroy_remote_with_active_rq{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"osm-controller\"}[1m]))",
+            "expr": "sum(irate(envoy_cluster_upstream_cx_destroy_remote_with_active_rq{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"$destination_service\"}[1m]))",
             "legendFormat": "Connection destroyed by the client",
             "refId": "A"
           },
           {
-            "expr": "sum(irate(envoy_cluster_upstream_cx_connect_timeout{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"osm-controller\"}[1m]))",
+            "expr": "sum(irate(envoy_cluster_upstream_cx_connect_timeout{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"$destination_service\"}[1m]))",
             "legendFormat": "Connection timeout",
             "refId": "B"
           },
           {
-            "expr": "sum(irate(envoy_cluster_upstream_cx_destroy_local_with_active_rq{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"osm-controller\"}[1m]))",
+            "expr": "sum(irate(envoy_cluster_upstream_cx_destroy_local_with_active_rq{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"$destination_service\"}[1m]))",
             "legendFormat": "Connection destroyed by local Envoy",
             "refId": "C"
           },
           {
-            "expr": "sum(irate(envoy_cluster_upstream_rq_pending_failure_eject{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"osm-controller\"}[1m]))",
+            "expr": "sum(irate(envoy_cluster_upstream_rq_pending_failure_eject{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"$destination_service\"}[1m]))",
             "legendFormat": "Pending failure ejection",
             "refId": "D"
           },
           {
-            "expr": "sum(irate(envoy_cluster_upstream_rq_pending_overflow{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"osm-controller\"}[1m]))",
+            "expr": "sum(irate(envoy_cluster_upstream_rq_pending_overflow{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"$destination_service\"}[1m]))",
             "legendFormat": "Pending overflow",
             "refId": "E"
           },
           {
-            "expr": "sum(irate(envoy_cluster_upstream_rq_timeout{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"osm-controller\"}[1m]))",
+            "expr": "sum(irate(envoy_cluster_upstream_rq_timeout{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"$destination_service\"}[1m]))",
             "legendFormat": "Request timeout",
             "refId": "F"
           },
           {
-            "expr": "sum(irate(envoy_cluster_upstream_rq_rx_reset{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"osm-controller\"}[1m]))",
+            "expr": "sum(irate(envoy_cluster_upstream_rq_rx_reset{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"$destination_service\"}[1m]))",
             "legendFormat": "Response reset",
             "refId": "G"
           },
           {
-            "expr": "sum(irate(envoy_cluster_upstream_rq_tx_reset{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"osm-controller\"}[1m]))",
+            "expr": "sum(irate(envoy_cluster_upstream_rq_tx_reset{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name=\"$destination_service\"}[1m]))",
             "legendFormat": "Request reset",
             "refId": "H"
           }
@@ -611,13 +610,13 @@
         "timeFrom": null,
         "timeRegions": [],
         "timeShift": null,
-        "title": "Connection/Requests errors to Control Plane",
+        "title": "Connection/Requests errors from source service perspective",
         "tooltip": {
           "shared": true,
           "sort": 0,
           "value_type": "individual"
         },
-        "type": "graph",
+        "type": "timeseries",
         "xaxis": {
           "buckets": null,
           "mode": "time",
@@ -698,6 +697,28 @@
           "tagsQuery": "",
           "type": "query",
           "useTags": false
+        },
+        {
+          "allValue": null,
+          "current": {},
+          "datasource": "${DS_PROMETHEUS}",
+          "definition": "label_values(envoy_cluster_upstream_cx_active{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name!~\"osm-controller|envoy-metrics-cluster|.*-local|envoy-tracing-cluster|passthrough-outbound\"}, envoy_cluster_name)",
+          "hide": 0,
+          "includeAll": false,
+          "label": "Destination Service",
+          "multi": false,
+          "name": "destination_service",
+          "options": [],
+          "query": "label_values(envoy_cluster_upstream_cx_active{source_service=\"$source_service\",source_namespace=\"$source_namespace\",envoy_cluster_name!~\"osm-controller|envoy-metrics-cluster|.*-local|envoy-tracing-cluster|passthrough-outbound\"}, envoy_cluster_name)",
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "tagValuesQuery": "",
+          "tags": [],
+          "tagsQuery": "",
+          "type": "query",
+          "useTags": false
         }
       ]
     },
@@ -719,7 +740,7 @@
       ]
     },
     "timezone": "",
-    "title": "OSM Control Plane Metrics",
-    "uid": "OSMCPMetrics",
+    "title": "OSM Service to Service Metrics",
+    "uid": "OSMs2sMetrics",
     "version": 1
   }

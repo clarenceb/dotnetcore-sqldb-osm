@@ -268,7 +268,7 @@ kind: ConfigMap
 ```
 
 ```sh
-kubectl apply -f Kubernetes/cm-stable-prometheus-server.yml
+kubectl apply -f cm-stable-prometheus-server.yml
 ```
 
 Verify Prometheus is correctly configured to scrape OSM mesh and API endpoints:
@@ -305,7 +305,7 @@ Add a datasource in Grafan for Prometheus:
 
 * Configuration / Data Sources / Add data source ([link](http://localhost:3000/datasources/new))
 * Select Prometheus
-* Update URL: `http://table-prometheus-server.default.svc.cluster.local`
+* Update URL: `http://stable-prometheus-server.default.svc.cluster.local`
 * Click **Save & test**
 
 Import OSM dashboard:
@@ -334,12 +334,12 @@ Configure distributed tracing
 ```sh
 kubectl create namespace jaeger
 
-kubectl apply -f jaeger.yaml
-kubectl apply -f jaeger-rbac.yaml
+kubectl apply -f Kubernetes/jaeger.yaml
+kubectl apply -f Kubernetes/jaeger-rbac.yaml
 kubectl patch meshconfig osm-mesh-config -n kube-system -p '{"spec":{"observability":{"tracing":{"enable":true, "address": "jaeger.jaeger.svc.cluster.local"}}}}' --type=merge
 
 JAEGER_POD=$(kubectl get pods -n jaeger --no-headers  --selector app=jaeger | awk 'NR==1{print $1}')
-kubectl port-forward -n jaeger $JAEGER_POD  16686:16686
+kubectl port-forward -n jaeger $JAEGER_POD 16686:16686
 ```
 
 Browse to: http://localhost:16686/

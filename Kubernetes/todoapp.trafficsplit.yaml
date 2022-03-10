@@ -42,9 +42,9 @@ spec:
   service: todoapp.todoapp
   backends:
   - service: todoapp-v1
-    weight: 25
+    weight: 50
   - service: todoapp-v2
-    weight: 75
+    weight: 50
 ---
 kind: Egress
 apiVersion: policy.openservicemesh.io/v1alpha1
@@ -87,7 +87,7 @@ metadata:
   namespace: todoapp
 spec:
   backends:
-  - name: todoapp
+  - name: todoapp-v1
     port:
       number: 80
       protocol: http
@@ -97,5 +97,5 @@ spec:
       protocol: http
   sources:
   - kind: Service
-    namespace: osm-system
-    name: osm-contour-envoy
+    namespace: $ingress_namespace
+    name: $ingress_service

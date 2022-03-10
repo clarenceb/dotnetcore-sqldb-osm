@@ -300,3 +300,8 @@ Kubernetes/cm-stable-prometheus-server.yml*
 
 # .NET core release directory
 out/
+
+# Demo
+env.sh
+cm-stable-prometheus-server.yml*
+

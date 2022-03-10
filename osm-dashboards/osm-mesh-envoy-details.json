@@ -1,4 +1,58 @@
 {
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    },
+    {
+      "name": "CONTROL_PLANE_NAMESPACE",
+      "label": "OSM Control Plane Namespace",
+      "description": "Namespace containing the OSM Control plane",
+      "type": "constant"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "panel",
+      "id": "gauge",
+      "name": "Gauge",
+      "version": ""
+    },
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "7.0.1"
+    },
+    {
+      "type": "panel",
+      "id": "graph",
+      "name": "Graph",
+      "version": ""
+    },
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "singlestat",
+      "name": "Singlestat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    }
+  ],
   "annotations": {
     "list": [
       {
@@ -12,6 +66,7 @@
       }
     ]
   },
+  "description": "Mesh and Envoy Details latest",
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
@@ -34,7 +89,7 @@
       "type": "row"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": "${DS_PROMETHEUS}",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -52,8 +107,8 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
-        "w": 3,
+        "h": 8,
+        "w": 9,
         "x": 0,
         "y": 1
       },
@@ -70,10 +125,10 @@
           "values": false
         }
       },
-      "pluginVersion": "7.0.1",
+      "pluginVersion": "8.2.2",
       "targets": [
         {
-          "expr": "osm_k8s_monitored_namespace_count{source_pod_name=~\"$osm_controller_instance\"}",
+          "expr": "sum(osm_resource_namespace_count{source_pod_name=~\"$osm_controller_instance\"}) by (source_pod_name)",
           "format": "time_series",
           "instant": true,
           "interval": "",
@@ -83,113 +138,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Monitored Namespaces",
-      "type": "stat"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {},
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 3,
-        "x": 3,
-        "y": 1
-      },
-      "id": 2,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "last"
-          ],
-          "values": false
-        }
-      },
-      "pluginVersion": "7.0.1",
-      "targets": [
-        {
-          "expr": "sum(osm_k8s_api_event_count{type=\"service-added\", source_pod_name=~\"$osm_controller_instance\"}) by (source_pod_name) OR on() vector(0) - sum(osm_k8s_api_event_count{type=\"service-deleted\", source_pod_name=~\"$osm_controller_instance\"}) by (source_pod_name) OR on() vector(0)",
-          "instant": true,
-          "interval": "",
-          "legendFormat": "{{source_pod_name}}",
-          "refId": "A"
-        }
-      ],
-      "timeFrom": null,
-      "timeShift": null,
-      "title": "Services in the Mesh",
-      "type": "stat"
-    },
-    {
-      "datasource": "Prometheus",
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {},
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 3,
-        "x": 6,
-        "y": 1
-      },
-      "id": 8,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "last"
-          ],
-          "values": false
-        }
-      },
-      "pluginVersion": "7.0.1",
-      "targets": [
-        {
-          "expr": "sum(osm_k8s_api_event_count{type=\"pod-added\", source_pod_name=~\"$osm_controller_instance\"}) by (source_pod_name) OR on() vector(0) - sum(osm_k8s_api_event_count{type=\"pod-deleted\", source_pod_name=~\"$osm_controller_instance\"}) by (source_pod_name) OR on() vector(0)",
-          "format": "time_series",
-          "instant": true,
-          "interval": "",
-          "legendFormat": "{{source_pod_name}}",
-          "refId": "A"
-        }
-      ],
-      "timeFrom": null,
-      "timeShift": null,
-      "title": "Number of Pods",
+      "title": "Monitored Namespace Count",
       "type": "stat"
     },
     {
@@ -197,7 +146,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "Prometheus",
+      "datasource": "${DS_PROMETHEUS}",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -207,7 +156,7 @@
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
-        "h": 5,
+        "h": 8,
         "w": 9,
         "x": 9,
         "y": 1
@@ -255,7 +204,7 @@
         "sort": 0,
         "value_type": "individual"
       },
-      "type": "graph",
+      "type": "timeseries",
       "xaxis": {
         "buckets": null,
         "mode": "time",
@@ -293,7 +242,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 6
+        "y": 9
       },
       "id": 32,
       "panels": [],
@@ -305,7 +254,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "Prometheus",
+      "datasource": "${DS_PROMETHEUS}",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -318,7 +267,7 @@
         "h": 9,
         "w": 9,
         "x": 0,
-        "y": 7
+        "y": 10
       },
       "hiddenSeries": false,
       "id": 14,
@@ -350,7 +299,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "irate(container_cpu_usage_seconds_total{namespace=\"osm-system\", container!~\"POD\", container!~\"\"}[1m])",
+          "expr": "irate(container_cpu_usage_seconds_total{namespace=\"${CONTROL_PLANE_NAMESPACE}\", container!~\"POD\", container!~\"\"}[1m])",
           "interval": "",
           "legendFormat": "{{pod}}",
           "refId": "A"
@@ -372,7 +321,7 @@
           "options": {}
         }
       ],
-      "type": "graph",
+      "type": "timeseries",
       "xaxis": {
         "buckets": null,
         "mode": "time",
@@ -408,7 +357,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "Prometheus",
+      "datasource": "${DS_PROMETHEUS}",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -436,7 +385,7 @@
         "h": 9,
         "w": 9,
         "x": 9,
-        "y": 7
+        "y": 10
       },
       "hiddenSeries": false,
       "id": 13,
@@ -458,7 +407,7 @@
         "dataLinks": []
       },
       "percentage": false,
-      "pluginVersion": "7.0.1",
+      "pluginVersion": "8.2.2",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -468,7 +417,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "container_memory_rss{namespace=\"osm-system\", container!=\"\", container!=\"POD\"}",
+          "expr": "container_memory_rss{namespace=\"${CONTROL_PLANE_NAMESPACE}\", container!=\"\", container!=\"POD\"}",
           "interval": "",
           "legendFormat": "{{pod}}",
           "refId": "A"
@@ -490,7 +439,7 @@
           "options": {}
         }
       ],
-      "type": "graph",
+      "type": "timeseries",
       "xaxis": {
         "buckets": null,
         "mode": "time",
@@ -528,7 +477,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 16
+        "y": 19
       },
       "id": 34,
       "panels": [],
@@ -548,7 +497,7 @@
         "mode": "opacity"
       },
       "dataFormat": "tsbuckets",
-      "datasource": "Prometheus",
+      "datasource": "${DS_PROMETHEUS}",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -575,7 +524,7 @@
         "h": 8,
         "w": 9,
         "x": 0,
-        "y": 17
+        "y": 20
       },
       "heatmap": {},
       "hideZeroBuckets": true,
@@ -585,7 +534,7 @@
       "legend": {
         "show": false
       },
-      "pluginVersion": "7.0.1",
+      "pluginVersion": "8.2.2",
       "reverseYBuckets": false,
       "targets": [
         {
@@ -635,7 +584,7 @@
         "mode": "opacity"
       },
       "dataFormat": "tsbuckets",
-      "datasource": "Prometheus",
+      "datasource": "${DS_PROMETHEUS}",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -662,7 +611,7 @@
         "h": 8,
         "w": 9,
         "x": 9,
-        "y": 17
+        "y": 20
       },
       "heatmap": {},
       "hideZeroBuckets": true,
@@ -672,7 +621,7 @@
       "legend": {
         "show": false
       },
-      "pluginVersion": "7.0.1",
+      "pluginVersion": "8.2.2",
       "reverseYBuckets": false,
       "targets": [
         {
@@ -722,7 +671,7 @@
         "mode": "opacity"
       },
       "dataFormat": "tsbuckets",
-      "datasource": "Prometheus",
+      "datasource": "${DS_PROMETHEUS}",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -749,7 +698,7 @@
         "h": 10,
         "w": 18,
         "x": 0,
-        "y": 25
+        "y": 28
       },
       "heatmap": {},
       "hideZeroBuckets": true,
@@ -759,7 +708,7 @@
       "legend": {
         "show": false
       },
-      "pluginVersion": "7.0.1",
+      "pluginVersion": "8.2.2",
       "reverseYBuckets": false,
       "targets": [
         {
@@ -803,7 +752,7 @@
       "bars": true,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "Prometheus",
+      "datasource": "${DS_PROMETHEUS}",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -830,7 +779,7 @@
         "h": 9,
         "w": 9,
         "x": 0,
-        "y": 35
+        "y": 38
       },
       "hiddenSeries": false,
       "id": 36,
@@ -851,7 +800,7 @@
         "dataLinks": []
       },
       "percentage": false,
-      "pluginVersion": "7.0.1",
+      "pluginVersion": "8.2.2",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -883,7 +832,7 @@
         "sort": 0,
         "value_type": "individual"
       },
-      "type": "graph",
+      "type": "timeseries",
       "xaxis": {
         "buckets": null,
         "mode": "time",
@@ -919,7 +868,7 @@
       "bars": true,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "Prometheus",
+      "datasource": "${DS_PROMETHEUS}",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -946,7 +895,7 @@
         "h": 9,
         "w": 9,
         "x": 9,
-        "y": 35
+        "y": 38
       },
       "hiddenSeries": false,
       "id": 37,
@@ -967,7 +916,7 @@
         "dataLinks": []
       },
       "percentage": false,
-      "pluginVersion": "7.0.1",
+      "pluginVersion": "8.2.2",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -999,7 +948,7 @@
         "sort": 0,
         "value_type": "individual"
       },
-      "type": "graph",
+      "type": "timeseries",
       "xaxis": {
         "buckets": null,
         "mode": "time",
@@ -1014,6 +963,317 @@
           "logBase": 1,
           "max": null,
           "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 47
+      },
+      "id": 41,
+      "panels": [],
+      "title": "OSM Errors",
+      "type": "row"
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "${DS_PROMETHEUS}",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 10,
+        "w": 18,
+        "x": 0,
+        "y": 48
+      },
+      "hiddenSeries": false,
+      "id": 45,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "rate(osm_error_err_code_count{source_pod_name=~\"$osm_controller_instance\",err_code=~\"$osm_error_code\"}[1m])",
+          "interval": "",
+          "legendFormat": "{{source_pod_name}}",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(osm_error_err_code_count{source_pod_name=~\"$osm_injector_instance\",err_code=~\"$osm_error_code\"}[1m])",
+          "interval": "",
+          "legendFormat": "{{source_pod_name}}",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Rate of Increase of OSM Errors",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "${DS_PROMETHEUS}",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 9,
+        "w": 9,
+        "x": 0,
+        "y": 58
+      },
+      "hiddenSeries": false,
+      "id": 39,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "increase(osm_error_err_code_count{source_pod_name=~\"$osm_controller_instance\",err_code=~\"$osm_error_code\"}[1m])\n",
+          "interval": "",
+          "legendFormat": "{{err_code}}, {{source_pod_name}}",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [
+        {
+          "colorMode": "critical",
+          "fill": true,
+          "line": true,
+          "op": "gt",
+          "yaxis": "left"
+        }
+      ],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "OSM Controller Errors",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": "Count",
+          "logBase": 1,
+          "max": null,
+          "min": 0,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "${DS_PROMETHEUS}",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 9,
+        "w": 9,
+        "x": 9,
+        "y": 58
+      },
+      "hiddenSeries": false,
+      "id": 43,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "increase(osm_error_err_code_count{source_pod_name=~\"$osm_injector_instance\",err_code=~\"$osm_error_code\"}[1m])",
+          "interval": "",
+          "legendFormat": "{{err_code}}, {{source_pod_name}}",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "OSM Injector Errors",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": "Count",
+          "logBase": 1,
+          "max": null,
+          "min": 0,
           "show": true
         },
         {
@@ -1046,7 +1306,7 @@
             "$__all"
           ]
         },
-        "datasource": "Prometheus",
+        "datasource": "${DS_PROMETHEUS}",
         "definition": "label_values(osm_proxy_connect_count, source_pod_name)",
         "hide": 0,
         "includeAll": true,
@@ -1074,7 +1334,7 @@
             "$__all"
           ]
         },
-        "datasource": "Prometheus",
+        "datasource": "${DS_PROMETHEUS}",
         "definition": "label_values(osm_injector_injector_sidecar_count, source_pod_name)",
         "hide": 0,
         "includeAll": true,
@@ -1100,7 +1360,7 @@
           "text": "ADS",
           "value": "ADS"
         },
-        "datasource": "Prometheus",
+        "datasource": "${DS_PROMETHEUS}",
         "definition": "label_values(osm_proxy_config_update_time_bucket, resource_type)",
         "hide": 0,
         "includeAll": false,
@@ -1109,6 +1369,34 @@
         "name": "xds_path",
         "options": [],
         "query": "label_values(osm_proxy_config_update_time_bucket, resource_type)",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "tagValuesQuery": "",
+        "tags": [],
+        "tagsQuery": "",
+        "type": "query",
+        "useTags": false
+      },
+      {
+        "allValue": null,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": "${DS_PROMETHEUS}",
+        "definition": "label_values(osm_error_err_code_count, err_code)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "OSM Error Code",
+        "multi": true,
+        "name": "osm_error_code",
+        "options": [],
+        "query": "label_values(osm_error_err_code_count, err_code)",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,

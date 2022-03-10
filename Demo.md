@@ -3,9 +3,9 @@ Add OSM to an existing app running on AKS
 
 This is an example application based on the [Tutorial: Build an ASP.NET Core and Azure SQL Database app in Azure App Service](https://docs.microsoft.com/en-us/azure/app-service/tutorial-dotnetcore-sqldb-app?pivots=platform-linux) which has been modified for the purposes of demonstrating some capabilities of Open Service Mesh (OSM).
 
-* Tested with: OSM v1.0.0 (self-installed, OSS version)
+* Tested with: OSM v1.0.0 (both AKS add-on and self-installed version)
 * Local environment used: WSL2/Ubuntu
-* Kubernetes environment: AKS v1.21.7
+* Kubernetes environment: AKS v1.22.6
 
 **Note:** OSM works with any Kubernetes cluster and is not dependent on Azure in any way.
 
@@ -19,6 +19,7 @@ LOCATION="australiaeast"
 RG_NAME="aks-demos"
 CLUSTER="aks-demos"
 NODE_COUNT=3
+K8S_VERSION="1.22.6"
 ```
 
 * Create the Azure Resource Group to contain all Azure Resources for the demo:
@@ -40,7 +41,9 @@ az aks create \
   --resource-group $RG_NAME \
   --name $CLUSTER \
   --node-count $NODE_COUNT \
-  --enable-addons monitoring --generate-ssh-keys
+  --kubernetes-version $K8S_VERSION \
+  --enable-addons monitoring \
+  --generate-ssh-keys
 
 az aks get-credentials \
 --resource-group $RG_NAME \
@@ -52,10 +55,42 @@ az aks install-cli
 kubectl get node -o wide
 ```
 
+* OSM CLI install and configuration
+
+```sh
+# OSM CLI installation
+system=$(uname -s)
+release=v1.0.0
+curl -L https://github.com/openservicemesh/osm/releases/download/${release}/osm-${release}-${system}-amd64.tar.gz | tar -vxzf -
+sudo mv ./${system}-amd64/osm /usr/local/bin/osm
+osm version
+
+# If using AKS add-on
+cat << EOF > $HOME/.osm/config.yaml
+---
+install:
+  kind: managed
+  distribution: AKS
+  namespace: kube-system
+EOF
+
+# else if using self-hosted OSM
+cat << EOF > $HOME/.osm/config.yaml
+---
+install:
+  kind: self-hosted
+  distribution: ""
+  namespace: osm-system
+EOF
+
+export OSM_CONFIG=$HOME/.osm/config.yaml
+osm env
+```
+
 * Option 1: Install OSM (via supported AKS add-on):
 
 ```sh
-az aks enable-addons   --resource-group $RG_NAME   --name $CLUSTER   --addons open-service-mesh
+az aks enable-addons --resource-group $RG_NAME --name $CLUSTER --addons open-service-mesh
 
 kubectl get pods -n kube-system --selector app.kubernetes.io/name=openservicemesh.io
 
@@ -68,7 +103,7 @@ osm-injector-7559dc959b-gnc4j     1/1     Running   0          32h
 osm-injector-7559dc959b-t8svh     1/1     Running   0          32h
 ```
 
-Deploy and configure metrics and tracing for thr OSM AKS add-on -- Prometheus server, Grafana, and Jaegar (see [installation and configuration steps](./Demo-PromGrafanaJaegar.md)).
+Deploy and configure metrics and tracing for the OSM AKS add-on -- Prometheus server, Grafana, and Jaegar (see [installation and configuration steps](./Demo-PromGrafanaJaegar.md)).
 
 * Option 2: Install OSM (self-installed via OSS version):
 
@@ -77,14 +112,7 @@ Follow steps here for various platforms: https://release-v1-0.docs.openserviceme
 Summary steps:
 
 ```sh
-# OSM CLI installation
-system=$(uname -s)
-release=v1.0.0
-curl -L https://github.com/openservicemesh/osm/releases/download/${release}/osm-${release}-${system}-amd64.tar.gz | tar -vxzf -
-sudo mv ./${system}-amd64/osm /usr/local/bin/osm
-osm version
-
-export osm_namespace=osm-system
+export osm_namespace=$(osm env | yq -r .install.namespace)
 export osm_mesh_name=osm
 
 # OSM installation to Kubernetes, including components: Prometheus, Grafana, Jaeger, Contour (Ingress)
@@ -99,7 +127,7 @@ osm install \
     --set contour.configInline.tls.envoy-client-certificate.name=osm-contour-envoy-client-cert \
     --set contour.configInline.tls.envoy-client-certificate.namespace="$osm_namespace"
 
-kubectl get pods -n osm-system --selector app.kubernetes.io/name=openservicemesh.io
+kubectl get pods -n $osm_namespace --selector app.kubernetes.io/name=openservicemesh.io
 
 # All pods should be "Running"
 NAME                                   READY   STATUS    RESTARTS   AGE
@@ -274,8 +302,24 @@ Stop port forwarding by pressing `CTRL+C`.
 Set up the ingress endpoint:
 
 ```sh
-# Get the ingress service public ip
+osm_namespace=$(osm env | yq -r .install.namespace)
+
+# If you used self-hosted OSM and chose to install Contour ingress
 INGRESS_IP=$(kubectl get svc osm-contour-envoy -n $osm_namespace -o jsonpath="{.status.loadBalancer.ingress[*].ip}")
+
+# else, install NGINX ingress and get the INGRESS_IP
+kubectl create namespace ingress-basic
+
+helm install nginx-ingress ingress-nginx/ingress-nginx \
+    --namespace ingress-basic \
+    --set controller.replicaCount=2 \
+    --set controller.nodeSelector."kubernetes\.io/os"=linux \
+    --set defaultBackend.nodeSelector."kubernetes\.io/os"=linux \
+    --set controller.admissionWebhooks.patch.nodeSelector."kubernetes\.io/os"=linux
+
+kubectl --namespace ingress-basic get services -o wide -w nginx-ingress-ingress-nginx-controller
+
+INGRESS_IP=$(kubectl get svc nginx-ingress-ingress-nginx-controller -n ingress-basic -o jsonpath="{.status.loadBalancer.ingress[*].ip}")
 
 # Name to associate with public IP address
 DNSNAME=todoapp$RANDOM
@@ -294,7 +338,13 @@ Deploy the ingress configuration:
 
 ```sh
 export INGRESS_FQDN
+
+# If you used Contour with self-hosted OSM
 cat Kubernetes/todoapp.httpproxy.yaml | envsubst | kubectl apply -f - -n todoapp
+
+# else, if you used NGINX ingress
+cat Kubernetes/todoapp.ingress.yaml | envsubst | kubectl apply -f - -n todoapp
+
 echo http://$INGRESS_FQDN
 ```
 
@@ -309,7 +359,7 @@ STEP 2 - Onboard the app to the service mesh
 Verify OSM is installed:
 
 ```sh
-kubectl get pod -n osm-system
+kubectl get pods -n $osm_namespace --selector app.kubernetes.io/name=openservicemesh.io
 
 # OSM CLI
 osm help
@@ -340,19 +390,37 @@ Browse to: `http://$INGRESS_FQDN`
 
 RESULT: The todoapp should not work:
 
-It needs a IngressBackend policy defined so the Contour ingress can access services in the mesh
+It needs a IngressBackend policy defined so the ingress controller can access services in the mesh
 
 ```sh
-kubectl apply -f Kubernetes/todoapp.ingress.backend.yaml
+# If using Contour ingress
+export ingress_namespace=osm-system
+export ingress_service=osm-contour-envoy
+
+# else if using NGINX ingress
+export ingress_namespace=ingress-basic
+export ingress_service=nginx-ingress-ingress-nginx-controller
+
+cat Kubernetes/todoapp.ingress.backend.yaml | envsubst | kubectl apply -f - -n todoapp
+kubectl describe IngressBackend -n todoapp todoapp
 ```
 
-Browse to: `http://$INGRESS_FQDN`, the Todo app should now display with an expected error (DB access is denied due to egress being disabled).
+Browse to: `http://$INGRESS_FQDN`, the Todo app should now display correctly.
 
 STEP 3 - Define egress policy for external DB access
 ----------------------------------------------------
 
-OSM has Egress disabled by default so the app can't access Azure SQL DB.
-Rather then enable egress globally, you can enable egress on a case-by-case basis.
+OSM has Egress enabled by default so the app can access Azure SQL DB.
+Rather than enable egress globally, you can enable egress on a case-by-case basis.
+
+First, disable the global egress flag:
+
+```sh
+kubectl get meshconfig osm-mesh-config -n $osm_namespace -o yaml
+kubectl patch meshconfig osm-mesh-config -n $osm_namespace -p '{"spec":{"traffic":{"enableEgress":false}}}' --type=merge
+```
+
+Browse to: `http://$INGRESS_FQDN`, the Todo app should display a database error.
 
 To fix this egress error you can grant the `todo` app egress access to Azure SQL DB:
 
@@ -368,7 +436,11 @@ Step 4 - Define service-to-service access policies
 First, disable permissive traffic policy mode:
 
 ```sh
-kubectl patch meshconfig osm-mesh-config -n osm-system -p '{"spec":{"traffic":{"enablePermissiveTrafficPolicyMode":false}}}' --type=merge
+kubectl patch meshconfig osm-mesh-config -n $osm_namespace -p '{"spec":{"traffic":{"enablePermissiveTrafficPolicyMode":false}}}' --type=merge
+
+# Restart services to have the envoy proxy apply egress mode
+kubectl rollout restart -n todoapp deploy/todoapp
+kubectl rollout restart -n todoapis deploy/timeserver
 ```
 
 Browser displays: "Time server is currently unavailable" where the current time used to appear.
@@ -439,7 +511,7 @@ kubectl get deploy --namespace todoapp
 Create a traffic split 50:50 for v1 and v2 of todoapp:
 
 ```sh
-kubectl apply -f Kubernetes/todoapp.trafficsplit.yaml
+cat Kubernetes/todoapp.trafficsplit.yaml | envsubst | kubectl apply -f -
 
 kubectl get service --namespace todoapp
 kubectl describe trafficsplit todoapp -n todoapp
@@ -451,7 +523,7 @@ You should see the page change styles approximately 50% of the time, correspondi
 
 **TODO:** Traffic Split doesn't seem to be working in this demo!
 
-* For a workig example, see: https://github.com/clarenceb/bookstore#traffic-split-with-smi
+* For a working example, see: https://github.com/clarenceb/bookstore#traffic-split-with-smi
 
 STEP 7 - OSM observability
 --------------------------
@@ -478,7 +550,8 @@ URL=http://$INGRESS_FQDN/ k6 run ./k6-script.js
 Port forward to Grafana and log in (user: admin, password: admin):
 
 ```sh
-kubectl --namespace osm-system port-forward svc/osm-grafana 3000:3000
+GRAF_POD_NAME=$(kubectl get pods -l "app.kubernetes.io/name=grafana" -o jsonpath="{.items[0].metadata.name}")
+kubectl port-forward $GRAF_POD_NAME 3000
 ```
 
 In Grafana on the home page, click on search (magnifying glas icon).
@@ -497,19 +570,11 @@ Adjust the time period on each dashboard (e.g. last 15 mins) and try changing th
 
 * Jaeger
 
-Configure OSM for tracing with Jaeger:
-
-```sh
-kubectl get meshconfig osm-mesh-config -n osm-system
-
-kubectl patch meshconfig osm-mesh-config -n osm-system -p '{"spec":{"observability":{"tracing":{"enable":true,"address": "jaeger.osm-system.svc.cluster.local","port":9411,"endpoint":"/api/v2/spans"}}}}'  --type=merge
-```
-
 Port forward to the Jaeger instance to view some traces:
 
 ```sh
-JAEGER_POD=$(kubectl get pod -n osm-system --selector "app=jaeger" -o name)
-kubectl port-forward -n osm-system $JAEGER_POD 16686:16686
+JAEGER_POD=$(kubectl get pods -n jaeger --no-headers  --selector app=jaeger | awk 'NR==1{print $1}')
+kubectl port-forward -n jaeger $JAEGER_POD 16686:16686
 # CTRL+C to exit
 ```
 
@@ -540,8 +605,9 @@ kubectl delete -f Kubernetes/todoapp-v2.deploy.yaml
 osm namespace remove todoapis
 osm namespace remove todoapp
 
-# Enable permissive traffic policy mode
-kubectl patch meshconfig osm-mesh-config -n osm-system -p '{"spec":{"traffic":{"enablePermissiveTrafficPolicyMode":true}}}' --type=merge
+# Enable permissive traffic policy mode and global egress flag
+kubectl patch meshconfig osm-mesh-config -n $osm_namespace -p '{"spec":{"traffic":{"enablePermissiveTrafficPolicyMode":true}}}' --type=merge
+kubectl patch meshconfig osm-mesh-config -n $osm_namespace -p '{"spec":{"traffic":{"enableEgress":true}}}' --type=merge
 
 # Restart app to run without the mesh
 kubectl rollout restart -n todoapis deploy/timeserver
